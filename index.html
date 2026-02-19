@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Episode Rater</title>
+  <link rel="stylesheet" href="imdbrater/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>EpisodeRater</h1>
+    <input id="search" placeholder="Search shows..." />
+  </header>
+
+  <main id="content"></main>
+
+  <!-- Updated Passcode Overlay with Dial Pad -->
+  <div id="passcode-overlay" class="overlay">
+    <div class="passcode-container">
+      <h2>Enter Passcode</h2>
+      <div id="passcode-display" class="passcode-display"></div>
+      <div id="dial-pad" class="dial-pad">
+        <button class="digit">1</button>
+        <button class="digit">2</button>
+        <button class="digit">3</button>
+        <button class="digit">4</button>
+        <button class="digit">5</button>
+        <button class="digit">6</button>
+        <button class="digit">7</button>
+        <button class="digit">8</button>
+        <button class="digit">9</button>
+        <button id="clear-btn">Clear</button>
+        <button class="digit">0</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/passcode.js"></script>
+</body>
+</html>
