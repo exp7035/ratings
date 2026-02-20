@@ -1,8 +1,7 @@
 document.getElementById("search").addEventListener("input", async e => {
   const q = e.target.value;
   if (q.length < 3) return;
-  const data = await searchShows(q);
-  renderShowResults(data.results);
+  await searchShows(q);
 });
 
 // Updated saveRating and getRating to use consistent key format
