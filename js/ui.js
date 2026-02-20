@@ -1,6 +1,33 @@
+let currentSource = "search"; // Track where we navigated from
+
 function renderShowResults(shows) {
   const content = document.getElementById("content");
   content.innerHTML = "";
+  currentSource = "search"; // Mark that we came from search
+
+  // Add header with back button
+  const resultsHeader = document.createElement("div");
+  resultsHeader.className = "results-header";
+  resultsHeader.innerHTML = `
+    <button class="back-to-home-btn" id="back-home-btn">← Back to My Shows</button>
+    <h2>Search Results</h2>
+  `;
+  content.appendChild(resultsHeader);
+
+  // Add back home handler
+  setTimeout(() => {
+    const backBtn = document.getElementById("back-home-btn");
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        renderHomepage();
+      });
+    }
+  }, 100);
+
+  if (!shows || shows.length === 0) {
+    content.innerHTML += `<p class='no-results'>No shows found. Try a different search.</p>`;
+    return;
+  }
 
   shows.forEach(show => {
     const div = document.createElement("div");
@@ -8,6 +35,10 @@ function renderShowResults(shows) {
     const posterUrl = show.poster_path
       ? `https://image.tmdb.org/t/p/w300${show.poster_path}`
       : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450'%3E%3Crect fill='%23333' width='300' height='450'/%3E%3Ctext x='50%25' y='50%25' fill='%23999' text-anchor='middle' dominant-baseline='middle' font-size='18'%3ENo Image%3C/text%3E%3C/svg%3E";
+    
+    const followedShows = JSON.parse(localStorage.getItem("followedShows")) || [];
+    const isFollowed = followedShows.find(f => f.id === show.id);
+
     div.innerHTML = `
       <div class="poster-container">
         <img src="${posterUrl}" alt="${show.name}" class="poster" />
@@ -15,8 +46,7 @@ function renderShowResults(shows) {
       <h3>${show.name}</h3>
       <p>${show.first_air_date ? show.first_air_date.split("-")[0] : "N/A"}</p>
       <button class="view-btn">View Episodes</button>
-      <button class="follow-btn">Follow</button>
-      <button class="unfollow-btn">Unfollow</button>
+      <button class="follow-btn ${isFollowed ? 'following' : ''}">${isFollowed ? '✓ Following' : '+ Follow'}</button>
       <button class="export-btn">Export Ratings</button>
     `;
 
@@ -24,22 +54,19 @@ function renderShowResults(shows) {
       loadSeason(show.id, show.name);
     });
 
-    div.querySelector(".follow-btn").addEventListener("click", () => {
-      const followedShows = JSON.parse(localStorage.getItem("followedShows")) || [];
-      if (!followedShows.find(f => f.id === show.id)) {
-        followedShows.push({ id: show.id, name: show.name, first_air_date: show.first_air_date });
-        localStorage.setItem("followedShows", JSON.stringify(followedShows));
-        alert(`${show.name} has been added to your followed shows!`);
+    div.querySelector(".follow-btn").addEventListener("click", (e) => {
+      const followedShowsList = JSON.parse(localStorage.getItem("followedShows")) || [];
+      if (isFollowed) {
+        const filtered = followedShowsList.filter(f => f.id !== show.id);
+        localStorage.setItem("followedShows", JSON.stringify(filtered));
+        e.target.textContent = "+ Follow";
+        e.target.classList.remove("following");
       } else {
-        alert(`${show.name} is already followed.`);
+        followedShowsList.push({ id: show.id, name: show.name, first_air_date: show.first_air_date, poster_path: show.poster_path });
+        localStorage.setItem("followedShows", JSON.stringify(followedShowsList));
+        e.target.textContent = "✓ Following";
+        e.target.classList.add("following");
       }
-    });
-
-    div.querySelector(".unfollow-btn").addEventListener("click", () => {
-      let followedShows = JSON.parse(localStorage.getItem("followedShows")) || [];
-      followedShows = followedShows.filter(f => f.id !== show.id);
-      localStorage.setItem("followedShows", JSON.stringify(followedShows));
-      alert(`${show.name} has been removed from your followed shows.`);
     });
 
     div.querySelector(".export-btn").addEventListener("click", () => {
@@ -60,8 +87,16 @@ async function loadSeason(showId, showName) {
   backBtn.textContent = "← Back to Shows";
   backBtn.onclick = () => {
     const searchInput = document.getElementById("search");
-    if (searchInput.value) {
+    if (currentSource === "followed") {
+      // Go back to homepage (followed shows view)
+      renderHomepage();
+      searchInput.value = "";
+    } else if (searchInput.value) {
+      // Go back to search results
       searchShows(searchInput.value);
+    } else {
+      // Fallback to homepage
+      renderHomepage();
     }
   };
   
@@ -249,20 +284,85 @@ async function loadSeason(showId, showName) {
 function renderHomepage() {
   const content = document.getElementById("content");
   content.innerHTML = "";
+  currentSource = "followed"; // Mark that we came from followed shows
 
   const followedShows = JSON.parse(localStorage.getItem("followedShows")) || [];
+
+  // Add home header with tools
+  const homeHeader = document.createElement("div");
+  homeHeader.className = "home-header";
+  homeHeader.innerHTML = `
+    <div class="home-title">
+      <h2>My Shows</h2>
+      <p class="subtitle">${followedShows.length} show${followedShows.length !== 1 ? 's' : ''} followed</p>
+    </div>
+    <div class="home-tools">
+      <button class="export-btn" id="export-all-btn">📤 Export All Ratings</button>
+      <button class="import-btn" id="import-file-btn">📥 Import Ratings</button>
+      <input type="file" id="import-file-input" accept="application/json" style="display: none;" />
+    </div>
+  `;
+  content.appendChild(homeHeader);
+
+  // Add import handler
+  setTimeout(() => {
+    const importBtn = document.getElementById("import-file-btn");
+    const importInput = document.getElementById("import-file-input");
+    const exportAllBtn = document.getElementById("export-all-btn");
+    
+    if (importBtn && importInput) {
+      importBtn.addEventListener("click", () => importInput.click());
+      importInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const data = JSON.parse(event.target.result);
+              localStorage.setItem("ratings", JSON.stringify(data));
+              alert("Ratings imported successfully!");
+              importInput.value = "";
+            } catch (error) {
+              alert("Invalid ratings file. Please upload a valid JSON file.");
+            }
+          };
+          reader.readAsText(file);
+        }
+      });
+    }
+    
+    if (exportAllBtn) {
+      exportAllBtn.addEventListener("click", () => {
+        const ratings = JSON.parse(localStorage.getItem("ratings")) || {};
+        const dataStr = JSON.stringify(ratings, null, 2);
+        const dataBlob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `ratings_${new Date().getTime()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+  }, 100);
 
   if (followedShows.length > 0) {
     const followedSection = document.createElement("div");
     followedSection.className = "followed-section";
-    followedSection.innerHTML = `<h2>Followed Shows</h2>`;
 
     followedShows.forEach(show => {
       const div = document.createElement("div");
       div.className = "card show-card";
+      const posterUrl = show.poster_path
+        ? `https://image.tmdb.org/t/p/w300${show.poster_path}`
+        : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450'%3E%3Crect fill='%23333' width='300' height='450'/%3E%3Ctext x='50%25' y='50%25' fill='%23999' text-anchor='middle' dominant-baseline='middle' font-size='18'%3ENo Image%3C/text%3E%3C/svg%3E";
+      
       div.innerHTML = `
+        <div class="poster-container">
+          <img src="${posterUrl}" alt="${show.name}" class="poster" />
+        </div>
         <h3>${show.name}</h3>
-        <p>${show.first_air_date ? show.first_air_date.split("-")[0] : "N/A"}</p>
+        <p class="show-year">${show.first_air_date ? show.first_air_date.split("-")[0] : "N/A"}</p>
         <button class="view-btn">View Episodes</button>
       `;
 
@@ -275,7 +375,14 @@ function renderHomepage() {
 
     content.appendChild(followedSection);
   } else {
-    content.innerHTML = `<p class='no-results'>No followed shows yet. Search and follow shows to see them here!</p>`;
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-state";
+    emptyState.innerHTML = `
+      <div class="empty-icon">📺</div>
+      <h3>No Followed Shows Yet</h3>
+      <p>Search for your favorite TV shows and follow them to get started!</p>
+    `;
+    content.appendChild(emptyState);
   }
 }
 
@@ -367,34 +474,3 @@ function unfollowShow(showId) {
   localStorage.setItem("followedShows", JSON.stringify(followedShows));
   renderFollowedShows();
 }
-
-// Ensure the 'Back to Shows' button works correctly
-document.addEventListener("DOMContentLoaded", () => {
-  const content = document.getElementById("content");
-
-  function renderFollowedShows() {
-    const followedShows = JSON.parse(localStorage.getItem("followedShows")) || [];
-    if (followedShows.length === 0) {
-      content.innerHTML = "<p class='no-results'>No followed shows found.</p>";
-      return;
-    }
-
-    renderShowResults(followedShows);
-  }
-
-  document.addEventListener("click", (event) => {
-    if (event.target.classList.contains("back-btn")) {
-      renderFollowedShows();
-    }
-  });
-});
-
-// Added Import Ratings button to the page
-document.addEventListener("DOMContentLoaded", () => {
-  const importContainer = document.createElement("div");
-  importContainer.innerHTML = `
-    <label for="import-btn" class="import-label">Import Ratings:</label>
-    <input type="file" id="import-btn" class="import-input" accept="application/json" />
-  `;
-  document.body.prepend(importContainer);
-});
