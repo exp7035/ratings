@@ -15,3 +15,8 @@ async function getEpisodes(showId, season) {
   const res = await fetch(`${BASE}/tv/${showId}/season/${season}?api_key=${API_KEY}`);
   return res.json();
 }
+
+async function getExternalIds(showId) {
+  const res = await fetch(`${BASE}/tv/${showId}/external_ids?api_key=${API_KEY}`);
+  return res.json();
+}
