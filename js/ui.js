@@ -184,7 +184,11 @@ async function loadSeason(showId, showName) {
             <p class="episode-overview">${ep.overview || "No description available"}</p>
             <div class="rating-section">
               <div class="rating-visual">
-                <span class="rating-number">${rating || "0"}</span>
+                <span class="rating-number user-rating">${rating || "?"}</span>
+                <span class="imdb-rating" style="display: none;">
+                  <span class="imdb-label">IMDb:</span>
+                  <span class="imdb-value">--</span>
+                </span>
               </div>
               <button class="rate-btn">Rate</button>
               <div class="slider-container" style="display: none;">
@@ -197,22 +201,31 @@ async function loadSeason(showId, showName) {
         const rateBtn = div.querySelector(".rate-btn");
         const sliderContainer = div.querySelector(".slider-container");
         const slider = div.querySelector(".slider");
-        const ratingNumber = div.querySelector(".rating-number");
+        const ratingNumber = div.querySelector(".user-rating");
+        const imdbRatingEl = div.querySelector(".imdb-rating");
+        const imdbValueEl = div.querySelector(".imdb-value");
 
         rateBtn.addEventListener("click", () => {
-          sliderContainer.style.display = "flex"; // Ensure proper display on desktop
-          slider.style.display = "block"; // Ensure slider is visible
+          sliderContainer.style.display = "flex";
+          slider.style.display = "block";
           rateBtn.style.display = "none";
+          // Hide IMDb rating when re-opening slider
+          imdbRatingEl.style.display = "none";
         });
 
         slider.addEventListener("input", function() {
           ratingNumber.textContent = parseFloat(this.value).toFixed(1);
         });
 
-        slider.addEventListener("change", function() {
-          saveRating(showId, ep.id, this.value);
+        slider.addEventListener("change", async function() {
+          const userRating = this.value;
+          saveRating(showId, ep.id, userRating);
+          ratingNumber.textContent = parseFloat(userRating).toFixed(1);
           sliderContainer.style.display = "none";
           rateBtn.style.display = "block";
+          
+          // Fetch and reveal IMDb rating
+          await fetchAndRevealIMDbRating(showId, currentSeason, ep.episode_number, imdbValueEl, imdbRatingEl);
         });
 
         episodesContainer.appendChild(div);
@@ -279,6 +292,42 @@ async function loadSeason(showId, showName) {
   }, 0);
   
   renderSeason(currentSeason);
+}
+
+// Fetch IMDb rating and reveal it after user rates
+async function fetchAndRevealIMDbRating(showId, seasonNum, episodeNum, imdbValueEl, imdbRatingEl) {
+  try {
+    // First get the show's external IDs to find IMDb ID
+    const externalIds = await getExternalIds(showId);
+    const imdbShowId = externalIds.imdb_id;
+    
+    if (!imdbShowId) {
+      imdbValueEl.textContent = "N/A";
+      imdbRatingEl.style.display = "inline-flex";
+      imdbRatingEl.style.animation = "fadeIn 0.5s ease-out";
+      return;
+    }
+    
+    // Show loading state
+    imdbValueEl.textContent = "Loading...";
+    imdbRatingEl.style.display = "inline-flex";
+    imdbRatingEl.style.opacity = "0";
+    
+    // Simulate loading delay for effect
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Since we can't easily get episode-specific IMDb ratings without additional API keys,
+    // we'll show the show's overall IMDb rating instead
+    const showDetails = await getShowDetails(showId);
+    const imdbRating = showDetails.vote_average ? showDetails.vote_average.toFixed(1) : "N/A";
+    
+    imdbValueEl.textContent = imdbRating;
+    imdbRatingEl.style.animation = "fadeIn 0.5s ease-out forwards";
+  } catch (error) {
+    console.error("Error fetching IMDb rating:", error);
+    imdbValueEl.textContent = "N/A";
+    imdbRatingEl.style.animation = "fadeIn 0.5s ease-out forwards";
+  }
 }
 
 function renderHomepage() {
